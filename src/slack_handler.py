@@ -160,6 +160,129 @@ class SlackHandler:
 
         return enriched_replies
 
+    def find_latest_attendance_thread(self, channel_id: str, keywords: List[str] = None) -> Optional[Dict]:
+        """
+        채널에서 가장 최신 출석체크 스레드 찾기
+
+        Args:
+            channel_id (str): 채널 ID
+            keywords (List[str]): 검색 키워드 리스트 (기본값: ["출석 스레드", "출석체크", "출석"])
+
+        Returns:
+            Optional[Dict]: 찾은 메시지 정보 (ts, text, user 등), 없으면 None
+        """
+        if keywords is None:
+            keywords = ["출석 스레드", "출석체크", "출석"]
+
+        try:
+            print(f"\n[Slack] 최신 출석체크 스레드 검색 중...")
+            print(f"  - 검색 키워드: {', '.join(keywords)}")
+
+            # 최근 메시지 가져오기 (최대 100개)
+            response = self.client.conversations_history(
+                channel=channel_id,
+                limit=100
+            )
+
+            if not response['ok']:
+                raise SlackApiError("API 호출 실패", response)
+
+            messages = response['messages']
+
+            # 키워드를 포함한 메시지 찾기 (최신순)
+            for message in messages:
+                text = message.get('text', '').lower()
+
+                # Bot 메시지 제외
+                if message.get('bot_id'):
+                    continue
+
+                # 키워드 검색
+                for keyword in keywords:
+                    if keyword.lower() in text:
+                        print(f"✓ 출석체크 스레드 발견!")
+                        print(f"  - 메시지: {message.get('text', '')[:100]}...")
+
+                        return {
+                            'ts': message.get('ts'),
+                            'text': message.get('text'),
+                            'user': message.get('user'),
+                        }
+
+            print("✗ 출석체크 스레드를 찾을 수 없습니다.")
+            return None
+
+        except SlackApiError as e:
+            print(f"✗ 메시지 검색 실패: {e.response['error']}")
+            return None
+
+    def send_dm(self, user_id: str, message: str) -> bool:
+        """
+        특정 사용자에게 DM 전송
+
+        Args:
+            user_id (str): Slack User ID
+            message (str): 메시지 내용
+
+        Returns:
+            bool: 전송 성공 여부
+        """
+        try:
+            # DM 채널 열기
+            response = self.client.conversations_open(users=[user_id])
+
+            if not response['ok']:
+                raise SlackApiError("DM 채널 열기 실패", response)
+
+            channel_id = response['channel']['id']
+
+            # 메시지 전송
+            response = self.client.chat_postMessage(
+                channel=channel_id,
+                text=message
+            )
+
+            if response['ok']:
+                print(f"✓ DM 전송 성공")
+                return True
+            else:
+                print(f"✗ DM 전송 실패")
+                return False
+
+        except SlackApiError as e:
+            print(f"✗ DM 전송 실패: {e.response['error']}")
+            return False
+
+    def post_thread_reply(self, channel_id: str, thread_ts: str, message: str) -> bool:
+        """
+        스레드에 댓글 작성
+
+        Args:
+            channel_id (str): 채널 ID
+            thread_ts (str): 스레드 타임스탬프
+            message (str): 메시지 내용
+
+        Returns:
+            bool: 전송 성공 여부
+        """
+        try:
+            response = self.client.chat_postMessage(
+                channel=channel_id,
+                thread_ts=thread_ts,
+                text=message
+            )
+
+            if response['ok']:
+                print(f"✓ 스레드 댓글 작성 성공")
+                return True
+            else:
+                print(f"✗ 스레드 댓글 작성 실패")
+                return False
+
+        except SlackApiError as e:
+            print(f"✗ 스레드 댓글 작성 실패: {e.response['error']}")
+            return False
+
 
 # 테스트 코드
 if __name__ == '__main__':

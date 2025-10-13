@@ -81,29 +81,71 @@ def main():
         return
 
     # ========================================
-    # 3. 출석체크 스레드 입력
+    # 3. 출석체크 스레드 선택
     # ========================================
-    print_section("3. 출석체크 스레드 입력")
-    print("출석체크 스레드 링크 또는 Thread TS를 입력하세요.")
-    print("예시:")
-    print("  - 링크: https://workspace.slack.com/archives/C1234567890/p1760337471753399")
-    print("  - TS: 1760337471.753399")
+    print_section("3. 출석체크 스레드 선택")
+    print("1. 자동 감지 (최신 '출석 스레드' 메시지 찾기)")
+    print("2. 수동 입력 (링크 또는 Thread TS 직접 입력)")
     print()
 
-    thread_input = input("입력: ").strip()
+    choice = input("선택 (1/2): ").strip()
 
-    if not thread_input:
-        print("\n✗ 입력이 없습니다. 프로그램을 종료합니다.")
-        return
+    thread_ts = None
+    thread_message = None  # 스레드 메시지 정보 저장
 
-    # 링크 파싱
-    thread_ts = parse_slack_thread_link(thread_input)
+    if choice == '1':
+        # 자동 감지
+        print("\n[자동 감지 모드]")
+        thread_message = slack_handler.find_latest_attendance_thread(SLACK_CHANNEL_ID)
+
+        if not thread_message:
+            print("\n최신 출석체크 스레드를 찾을 수 없습니다.")
+            print("수동으로 입력하시겠습니까? (y/N): ", end="")
+            manual = input().strip().lower()
+
+            if manual != 'y':
+                return
+
+            choice = '2'  # 수동 입력으로 전환
+
+        else:
+            thread_ts = thread_message['ts']
+            print(f"\n이 스레드를 사용하시겠습니까? (Y/n): ", end="")
+            confirm = input().strip().lower()
+
+            if confirm == 'n':
+                print("\n수동 입력 모드로 전환합니다.")
+                choice = '2'
+            else:
+                print(f"✓ Thread TS: {thread_ts}")
+
+    if choice == '2' or (choice == '1' and not thread_ts):
+        # 수동 입력
+        print("\n[수동 입력 모드]")
+        print("출석체크 스레드 링크 또는 Thread TS를 입력하세요.")
+        print("예시:")
+        print("  - 링크: https://workspace.slack.com/archives/C1234567890/p1760337471753399")
+        print("  - TS: 1760337471.753399")
+        print()
+
+        thread_input = input("입력: ").strip()
+
+        if not thread_input:
+            print("\n✗ 입력이 없습니다. 프로그램을 종료합니다.")
+            return
+
+        # 링크 파싱
+        thread_ts = parse_slack_thread_link(thread_input)
+
+        if not thread_ts:
+            print(f"\n✗ 올바른 형식이 아닙니다: {thread_input}")
+            return
+
+        print(f"✓ Thread TS: {thread_ts}")
 
     if not thread_ts:
-        print(f"\n✗ 올바른 형식이 아닙니다: {thread_input}")
+        print("\n✗ Thread TS를 확인할 수 없습니다.")
         return
-
-    print(f"✓ Thread TS: {thread_ts}")
 
     # ========================================
     # 4. 슬랙 댓글 수집 및 출석 파싱
@@ -271,7 +313,53 @@ def main():
     success_count = sheets_handler.batch_update_attendance(updates)
 
     # ========================================
-    # 10. 완료
+    # 10. 알림 전송
+    # ========================================
+    print_section("10. 알림 전송")
+
+    # 10-1. 스레드에 완료 댓글 작성
+    print("\n출석체크 스레드에 완료 댓글을 작성하시겠습니까? (Y/n): ", end="")
+    send_thread_reply = input().strip().lower()
+
+    if send_thread_reply != 'n':
+        simple_message = "출석 체크를 완료했습니다."
+        if slack_handler.post_thread_reply(SLACK_CHANNEL_ID, thread_ts, simple_message):
+            print("✓ 스레드 댓글 작성 완료")
+
+    # 10-2. 작성자에게 DM 전송
+    if choice == '1' and thread_message:
+        # 자동 감지 모드에서만 작성자 정보 사용 가능
+        thread_author = thread_message.get('user')
+
+        if thread_author:
+            print(f"\n출석체크 스레드 작성자에게 DM을 전송하시겠습니까? (Y/n): ", end="")
+            send_dm_choice = input().strip().lower()
+
+            if send_dm_choice != 'n':
+                # DM 메시지 작성
+                dm_message = f"""[출석체크 완료 알림]
+
+📅 열: {column_input}열
+📊 총 인원: {len(students)}명
+✅ 출석: {len(matched_names)}명 ({len(matched_names)/len(students)*100:.1f}%)
+❌ 미출석: {len(absent_names)}명 ({len(absent_names)/len(students)*100:.1f}%)
+
+📋 출석자: {', '.join(matched_names)}
+
+⚠️ 미출석자 ({len(absent_names)}명):
+"""
+                # 미출석자 명단 추가 (최대 50명)
+                for i, name in enumerate(absent_names[:50], 1):
+                    dm_message += f"{i}. {name}\n"
+
+                if len(absent_names) > 50:
+                    dm_message += f"... 외 {len(absent_names) - 50}명"
+
+                if slack_handler.send_dm(thread_author, dm_message):
+                    print("✓ DM 전송 완료")
+
+    # ========================================
+    # 11. 완료
     # ========================================
     print_section("완료")
     print(f"✓ 출석 체크가 완료되었습니다!")
