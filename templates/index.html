@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>슬랙 출석체크 관리 시스템</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📊 슬랙 출석체크 관리 시스템</h1>
+            <p class="subtitle">여러 워크스페이스를 한 곳에서 관리하세요</p>
+        </header>
+
+        <main>
+            <!-- 워크스페이스 선택 -->
+            <section class="card">
+                <h2>1️⃣ 워크스페이스 선택</h2>
+                <select id="workspace-select" class="form-control">
+                    <option value="">워크스페이스를 선택하세요...</option>
+                </select>
+                <div id="workspace-info" class="info-box" style="display: none;">
+                    <p><strong>채널 ID:</strong> <span id="channel-id"></span></p>
+                    <p><strong>시트 이름:</strong> <span id="sheet-name"></span></p>
+                </div>
+            </section>
+
+            <!-- 스레드 선택 -->
+            <section class="card">
+                <h2>2️⃣ 출석체크 스레드 선택</h2>
+                <div class="radio-group">
+                    <label>
+                        <input type="radio" name="thread-mode" value="auto" checked>
+                        자동 감지 (최신 출석 스레드 찾기)
+                    </label>
+                    <label>
+                        <input type="radio" name="thread-mode" value="manual">
+                        수동 입력
+                    </label>
+                </div>
+
+                <div id="auto-detect-section">
+                    <button id="find-thread-btn" class="btn btn-primary">🔍 최신 출석 스레드 찾기</button>
+                    <div id="thread-found" class="success-box" style="display: none;">
+                        <p><strong>✓ 스레드 찾음:</strong></p>
+                        <p id="thread-text"></p>
+                        <code id="thread-ts-display"></code>
+                    </div>
+                </div>
+
+                <div id="manual-input-section" style="display: none;">
+                    <input type="text" id="thread-input" class="form-control"
+                           placeholder="스레드 링크 또는 Thread TS 입력">
+                    <small>예: https://workspace.slack.com/archives/.../p... 또는 1234567890.123456</small>
+                </div>
+
+                <input type="hidden" id="thread-ts" value="">
+                <input type="hidden" id="thread-user" value="">
+            </section>
+
+            <!-- 출석체크 설정 -->
+            <section class="card">
+                <h2>3️⃣ 출석체크 설정</h2>
+
+                <div class="form-group">
+                    <label for="column-input">출석체크할 열</label>
+                    <input type="text" id="column-input" class="form-control small"
+                           value="K" maxlength="2" placeholder="K">
+                    <small>구글 시트에서 출석을 표시할 열 (예: H, K, L)</small>
+                </div>
+
+                <div class="checkbox-group">
+                    <label>
+                        <input type="checkbox" id="mark-absent" checked>
+                        미출석자에게 'X' 표시
+                    </label>
+                    <label>
+                        <input type="checkbox" id="send-thread-reply" checked>
+                        스레드에 완료 댓글 작성
+                    </label>
+                    <label>
+                        <input type="checkbox" id="send-dm" checked>
+                        작성자에게 DM 전송
+                    </label>
+                </div>
+            </section>
+
+            <!-- 실행 버튼 -->
+            <section class="card">
+                <button id="run-btn" class="btn btn-success btn-large">▶️ 출석체크 시작</button>
+            </section>
+
+            <!-- 진행 상황 -->
+            <section id="progress-section" class="card" style="display: none;">
+                <h2>📊 진행 상황</h2>
+                <div class="progress-bar">
+                    <div id="progress-fill" class="progress-fill"></div>
+                </div>
+                <p id="progress-text" class="progress-text">준비 중...</p>
+            </section>
+
+            <!-- 결과 -->
+            <section id="result-section" class="card" style="display: none;">
+                <h2>🎉 출석체크 완료</h2>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-total">0</div>
+                        <div class="stat-label">총 인원</div>
+                    </div>
+                    <div class="stat-card stat-success">
+                        <div class="stat-value" id="stat-present">0</div>
+                        <div class="stat-label">출석</div>
+                    </div>
+                    <div class="stat-card stat-danger">
+                        <div class="stat-value" id="stat-absent">0</div>
+                        <div class="stat-label">미출석</div>
+                    </div>
+                    <div class="stat-card stat-info">
+                        <div class="stat-value" id="stat-rate">0%</div>
+                        <div class="stat-label">출석률</div>
+                    </div>
+                </div>
+
+                <div class="result-details">
+                    <div class="detail-box">
+                        <h3>✅ 출석자</h3>
+                        <div id="present-list" class="name-list"></div>
+                    </div>
+                    <div class="detail-box">
+                        <h3>❌ 미출석자</h3>
+                        <div id="absent-list" class="name-list"></div>
+                    </div>
+                </div>
+
+                <div id="unmatched-section" class="warning-box" style="display: none;">
+                    <h3>⚠️ 명단에 없는 이름</h3>
+                    <div id="unmatched-list" class="name-list"></div>
+                </div>
+
+                <div id="notifications-section" class="info-box" style="display: none;">
+                    <h3>📢 알림</h3>
+                    <ul id="notifications-list"></ul>
+                </div>
+            </section>
+
+            <!-- 오류 메시지 -->
+            <section id="error-section" class="card error-box" style="display: none;">
+                <h2>❌ 오류 발생</h2>
+                <p id="error-message"></p>
+            </section>
+        </main>
+
+        <footer>
+            <p>슬랙 출석체크 자동화 시스템 v2.0</p>
+            <p>Made with Flask & Python</p>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
