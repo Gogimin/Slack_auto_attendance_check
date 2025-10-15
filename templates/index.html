@@ -5,11 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>슬랙 출석체크 관리 시스템</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        /* 이모지 폰트 보정 */
+        .emoji {
+            font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji', sans-serif;
+            font-style: normal;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>📊 슬랙 출석체크 관리 시스템</h1>
+            <h1><span class="emoji">📊</span> 슬랙 출석체크 관리 시스템</h1>
             <p class="subtitle">여러 워크스페이스를 한 곳에서 관리하세요</p>
         </header>
 

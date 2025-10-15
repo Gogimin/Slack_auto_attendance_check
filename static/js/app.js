@@ -86,8 +86,8 @@ function onWorkspaceChange(e) {
         // 스레드 정보 초기화
         resetThreadInfo();
 
-        // 스케줄 정보 로드
-        loadSchedule();
+        // 스케줄 폼 초기화 (기존 값 불러오지 않음)
+        resetScheduleForm();
     } else {
         currentWorkspace = null;
         document.getElementById('workspace-info').style.display = 'none';
@@ -339,6 +339,26 @@ function resetThreadInfo() {
     document.getElementById('thread-input').value = '';
 }
 
+// 스케줄 폼 초기화 (기본값으로 리셋)
+function resetScheduleForm() {
+    // 자동 실행 비활성화
+    document.getElementById('auto-schedule-enabled').checked = false;
+    document.getElementById('schedule-settings').style.display = 'none';
+
+    // 출석 스레드 생성 초기화
+    document.getElementById('create-thread-day').value = '';
+    document.getElementById('create-thread-time').value = '';
+    document.getElementById('thread-message').value = '📢 출석 스레드입니다.\n\n"이름/출석했습니다" 형식으로 댓글 달아주세요!';
+
+    // 출석 집계 초기화
+    document.getElementById('check-attendance-day').value = '';
+    document.getElementById('check-attendance-time').value = '';
+    document.getElementById('check-attendance-column').value = 'K';
+
+    // 알림 수신자 초기화
+    document.getElementById('notification-user-id').value = '';
+}
+
 // 스케줄 활성화 토글
 function toggleScheduleSettings(e) {
     const settings = document.getElementById('schedule-settings');
@@ -517,9 +537,20 @@ function editSchedule(workspaceName) {
     // 워크스페이스 선택
     const select = document.getElementById('workspace-select');
     select.value = workspaceName;
+    currentWorkspace = workspaceName;
 
-    // 워크스페이스 변경 이벤트 트리거 (스케줄 로드)
-    select.dispatchEvent(new Event('change'));
+    // 워크스페이스 정보 업데이트 (change 이벤트 트리거하지 않음)
+    const selectedOption = select.options[select.selectedIndex];
+    const infoBox = document.getElementById('workspace-info');
+    document.getElementById('channel-id').textContent = selectedOption.dataset.channelId;
+    document.getElementById('sheet-name').textContent = selectedOption.dataset.sheetName;
+    infoBox.style.display = 'block';
+
+    // 스레드 정보 초기화
+    resetThreadInfo();
+
+    // 저장된 스케줄 불러오기 (수정 모드에서만!)
+    loadSchedule();
 
     // 스케줄 섹션으로 스크롤
     document.getElementById('auto-schedule-enabled').scrollIntoView({ behavior: 'smooth', block: 'center' });
