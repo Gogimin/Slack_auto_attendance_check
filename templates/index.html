@@ -59,9 +59,10 @@
                 <input type="hidden" id="thread-user" value="">
             </section>
 
-            <!-- 출석체크 설정 -->
+            <!-- 출석체크 설정 (수동 실행용) -->
             <section class="card">
-                <h2>3️⃣ 출석체크 설정</h2>
+                <h2>3️⃣ 수동 출석체크 설정</h2>
+                <p class="subtitle-small">⚡ <strong>지금 바로 실행</strong>할 때 사용 (아래 "▶️ 출석체크 시작" 버튼으로 즉시 실행)</p>
 
                 <div class="form-group">
                     <label for="column-input">출석체크할 열</label>
@@ -86,9 +87,134 @@
                 </div>
             </section>
 
+            <!-- 자동 실행 스케줄 -->
+            <section class="card">
+                <h2>⏰ 자동 실행 스케줄 (선택사항)</h2>
+                <p class="subtitle-small">⏱️ <strong>예약 시간에 자동 실행</strong> ("💾 스케줄 저장"으로 예약 등록, 즉시 실행되지 않음)</p>
+
+                <div class="info-box" style="margin-bottom: 15px;">
+                    <p><strong>⚠️ 중요:</strong> 자동 실행이 작동하려면 <strong>프로그램(Flask 앱)이 계속 실행 중이어야 합니다.</strong></p>
+                    <p>프로그램을 종료하면 스케줄도 중단됩니다.</p>
+                </div>
+
+                <div class="checkbox-group">
+                    <label>
+                        <input type="checkbox" id="auto-schedule-enabled">
+                        자동 실행 활성화
+                    </label>
+                </div>
+
+                <div id="schedule-settings" style="display: none;">
+                    <div class="schedule-section">
+                        <h3>📝 출석 스레드 자동 생성</h3>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="create-thread-day">요일</label>
+                                <select id="create-thread-day" class="form-control">
+                                    <option value="">선택하세요...</option>
+                                    <option value="mon">월요일</option>
+                                    <option value="tue">화요일</option>
+                                    <option value="wed">수요일</option>
+                                    <option value="thu">목요일</option>
+                                    <option value="fri">금요일</option>
+                                    <option value="sat">토요일</option>
+                                    <option value="sun">일요일</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="create-thread-time">시간 (한국 시간)</label>
+                                <input type="time" id="create-thread-time" class="form-control">
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="thread-message">스레드 메시지</label>
+                            <textarea id="thread-message" class="form-control" rows="3"
+                                      placeholder="📢 출석 스레드&#10;&#10;오늘 출석 체크합니다!&#10;이 메시지에 '이름/출석' 형식으로 댓글 달아주세요."></textarea>
+                        </div>
+                    </div>
+
+                    <div class="schedule-section">
+                        <h3>📊 출석 집계 자동 실행</h3>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="check-attendance-day">요일</label>
+                                <select id="check-attendance-day" class="form-control">
+                                    <option value="">선택하세요...</option>
+                                    <option value="mon">월요일</option>
+                                    <option value="tue">화요일</option>
+                                    <option value="wed">수요일</option>
+                                    <option value="thu">목요일</option>
+                                    <option value="fri">금요일</option>
+                                    <option value="sat">토요일</option>
+                                    <option value="sun">일요일</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="check-attendance-time">시간 (한국 시간)</label>
+                                <input type="time" id="check-attendance-time" class="form-control">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="check-attendance-column">출석 열</label>
+                                <input type="text" id="check-attendance-column" class="form-control small"
+                                       value="K" maxlength="2" placeholder="K">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="notification-user-id">알림 수신자 (선택)</label>
+                        <input type="text" id="notification-user-id" class="form-control"
+                               placeholder="이메일 주소 또는 User ID (빈칸이면 스레드 작성자에게 전송)">
+                        <div class="info-box" style="margin-top: 8px; padding: 10px; font-size: 0.9rem;">
+                            <p><strong>💡 두 가지 방법 모두 사용 가능:</strong></p>
+
+                            <div style="margin: 10px 0; padding: 10px; background: #e8f5e9; border-radius: 4px;">
+                                <p><strong>✅ 방법 1: 이메일 주소 (추천)</strong></p>
+                                <p style="margin: 5px 0;">
+                                    슬랙 프로필에서 보이는 이메일 주소를 그대로 입력<br>
+                                    예: <code>kzm0502@igini.co.kr</code>
+                                </p>
+                            </div>
+
+                            <div style="margin: 10px 0; padding: 10px; background: #fff3cd; border-radius: 4px;">
+                                <p><strong>✅ 방법 2: User ID</strong></p>
+                                <p style="margin: 5px 0;">
+                                    <code>U</code>로 시작하는 ID 입력<br>
+                                    예: <code>U09L9UWC5L6</code>
+                                </p>
+                            </div>
+
+                            <p style="margin-top: 8px; color: #d9534f;">
+                                ❌ <strong>잘못된 형식:</strong> <code>D</code>나 <code>C</code>로 시작하는 채널 ID
+                            </p>
+                        </div>
+                    </div>
+
+                    <button id="save-schedule-btn" class="btn btn-primary">💾 스케줄 저장 (예약 등록, 즉시 실행 아님)</button>
+                </div>
+            </section>
+
+            <!-- 예약 현황 -->
+            <section class="card" id="schedule-status-section" style="display: none;">
+                <h2>📅 예약 현황</h2>
+                <div id="schedule-status-content">
+                    <p class="text-center">예약된 스케줄이 없습니다.</p>
+                </div>
+                <button id="refresh-schedule-btn" class="btn btn-primary" style="margin-top: 15px;">🔄 새로고침</button>
+            </section>
+
             <!-- 실행 버튼 -->
             <section class="card">
-                <button id="run-btn" class="btn btn-success btn-large">▶️ 출석체크 시작</button>
+                <button id="run-btn" class="btn btn-success btn-large">▶️ 출석체크 시작 (지금 바로 실행)</button>
+                <p style="text-align: center; margin-top: 10px; color: #666; font-size: 0.9rem;">
+                    위에서 설정한 워크스페이스, 스레드, 열로 즉시 실행됩니다
+                </p>
             </section>
 
             <!-- 진행 상황 -->

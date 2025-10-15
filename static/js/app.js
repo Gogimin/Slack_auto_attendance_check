@@ -7,6 +7,7 @@ let threadUser = null;
 document.addEventListener('DOMContentLoaded', function() {
     loadWorkspaces();
     setupEventListeners();
+    loadAllSchedules(); // 예약 현황 로드
 });
 
 // 이벤트 리스너 설정
@@ -27,6 +28,15 @@ function setupEventListeners() {
 
     // 실행 버튼
     document.getElementById('run-btn').addEventListener('click', runAttendance);
+
+    // 스케줄 활성화 토글
+    document.getElementById('auto-schedule-enabled').addEventListener('change', toggleScheduleSettings);
+
+    // 스케줄 저장 버튼
+    document.getElementById('save-schedule-btn').addEventListener('click', saveSchedule);
+
+    // 예약 현황 새로고침 버튼
+    document.getElementById('refresh-schedule-btn').addEventListener('click', loadAllSchedules);
 }
 
 // 워크스페이스 목록 로드
@@ -75,6 +85,9 @@ function onWorkspaceChange(e) {
 
         // 스레드 정보 초기화
         resetThreadInfo();
+
+        // 스케줄 정보 로드
+        loadSchedule();
     } else {
         currentWorkspace = null;
         document.getElementById('workspace-info').style.display = 'none';
@@ -324,6 +337,246 @@ function resetThreadInfo() {
     document.getElementById('thread-user').value = '';
     document.getElementById('thread-found').style.display = 'none';
     document.getElementById('thread-input').value = '';
+}
+
+// 스케줄 활성화 토글
+function toggleScheduleSettings(e) {
+    const settings = document.getElementById('schedule-settings');
+    if (e.target.checked) {
+        settings.style.display = 'block';
+    } else {
+        settings.style.display = 'none';
+    }
+}
+
+// 스케줄 정보 로드
+async function loadSchedule() {
+    if (!currentWorkspace) return;
+
+    try {
+        const response = await fetch(`/api/schedule/${currentWorkspace}`);
+        const data = await response.json();
+
+        if (data.success && data.schedule) {
+            const schedule = data.schedule;
+
+            // 활성화 상태
+            document.getElementById('auto-schedule-enabled').checked = schedule.enabled || false;
+            document.getElementById('schedule-settings').style.display = schedule.enabled ? 'block' : 'none';
+
+            // 출석 스레드 생성
+            document.getElementById('create-thread-day').value = schedule.create_thread_day || '';
+            document.getElementById('create-thread-time').value = schedule.create_thread_time || '';
+            document.getElementById('thread-message').value = schedule.create_thread_message || '';
+
+            // 출석 집계
+            document.getElementById('check-attendance-day').value = schedule.check_attendance_day || '';
+            document.getElementById('check-attendance-time').value = schedule.check_attendance_time || '';
+            document.getElementById('check-attendance-column').value = schedule.check_attendance_column || 'K';
+
+            // 알림 수신자
+            document.getElementById('notification-user-id').value = data.notification_user_id || '';
+        }
+    } catch (error) {
+        console.error('스케줄 로드 오류:', error);
+    }
+}
+
+// 스케줄 저장
+async function saveSchedule() {
+    if (!currentWorkspace) {
+        showError('워크스페이스를 먼저 선택하세요.');
+        return;
+    }
+
+    const schedule = {
+        enabled: document.getElementById('auto-schedule-enabled').checked,
+        create_thread_day: document.getElementById('create-thread-day').value,
+        create_thread_time: document.getElementById('create-thread-time').value,
+        create_thread_message: document.getElementById('thread-message').value,
+        check_attendance_day: document.getElementById('check-attendance-day').value,
+        check_attendance_time: document.getElementById('check-attendance-time').value,
+        check_attendance_column: document.getElementById('check-attendance-column').value
+    };
+
+    const notificationUserId = document.getElementById('notification-user-id').value.trim();
+
+    const btn = document.getElementById('save-schedule-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="loading"></span> 저장 중...';
+
+    try {
+        const response = await fetch('/api/schedule', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                workspace: currentWorkspace,
+                schedule: schedule,
+                notification_user_id: notificationUserId
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            alert('✓ 스케줄이 저장되었습니다!\n\n서버를 재시작하면 자동 실행이 활성화됩니다.');
+            hideError();
+            // 예약 현황 새로고침
+            loadAllSchedules();
+        } else {
+            showError('스케줄 저장 실패: ' + data.error);
+        }
+    } catch (error) {
+        showError('스케줄 저장 오류: ' + error.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '💾 스케줄 저장';
+    }
+}
+
+// 예약 현황 로드
+async function loadAllSchedules() {
+    try {
+        const response = await fetch('/api/schedules/all');
+        const data = await response.json();
+
+        const section = document.getElementById('schedule-status-section');
+        const content = document.getElementById('schedule-status-content');
+
+        if (data.success && data.schedules && data.schedules.length > 0) {
+            // 예약이 있으면 표시
+            section.style.display = 'block';
+
+            const dayNames = {
+                'mon': '월요일',
+                'tue': '화요일',
+                'wed': '수요일',
+                'thu': '목요일',
+                'fri': '금요일',
+                'sat': '토요일',
+                'sun': '일요일'
+            };
+
+            let html = '<table class="schedule-table">';
+            html += '<thead><tr>';
+            html += '<th>워크스페이스</th>';
+            html += '<th>출석 스레드 생성</th>';
+            html += '<th>출석 집계</th>';
+            html += '<th>출석 열</th>';
+            html += '<th>관리</th>';
+            html += '</tr></thead>';
+            html += '<tbody>';
+
+            data.schedules.forEach(schedule => {
+                html += '<tr>';
+                html += `<td><strong>${schedule.workspace_name}</strong></td>`;
+
+                // 출석 스레드 생성
+                if (schedule.create_thread_day && schedule.create_thread_time) {
+                    const day = dayNames[schedule.create_thread_day] || schedule.create_thread_day;
+                    html += `<td>매주 ${day} ${schedule.create_thread_time}</td>`;
+                } else {
+                    html += '<td><span style="color: #999;">미설정</span></td>';
+                }
+
+                // 출석 집계
+                if (schedule.check_attendance_day && schedule.check_attendance_time) {
+                    const day = dayNames[schedule.check_attendance_day] || schedule.check_attendance_day;
+                    html += `<td>매주 ${day} ${schedule.check_attendance_time}</td>`;
+                } else {
+                    html += '<td><span style="color: #999;">미설정</span></td>';
+                }
+
+                // 출석 열
+                html += `<td><strong>${schedule.check_attendance_column || 'K'}</strong></td>`;
+
+                // 관리 버튼
+                html += '<td>';
+                html += `<button class="btn-small btn-primary" onclick="editSchedule('${schedule.folder_name}')">✏️ 수정</button> `;
+                html += `<button class="btn-small btn-danger" onclick="deleteSchedule('${schedule.folder_name}', '${schedule.workspace_name}')">🗑️ 삭제</button>`;
+                html += '</td>';
+
+                html += '</tr>';
+            });
+
+            html += '</tbody></table>';
+            html += `<p style="margin-top: 15px; color: #666; font-size: 0.9rem;">총 ${data.total}개의 예약된 스케줄</p>`;
+
+            content.innerHTML = html;
+        } else {
+            // 예약이 없으면 숨김
+            section.style.display = 'none';
+        }
+    } catch (error) {
+        console.error('예약 현황 로드 오류:', error);
+    }
+}
+
+// 스케줄 수정
+function editSchedule(workspaceName) {
+    // 워크스페이스 선택
+    const select = document.getElementById('workspace-select');
+    select.value = workspaceName;
+
+    // 워크스페이스 변경 이벤트 트리거 (스케줄 로드)
+    select.dispatchEvent(new Event('change'));
+
+    // 스케줄 섹션으로 스크롤
+    document.getElementById('auto-schedule-enabled').scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    // 자동 실행 활성화 체크박스 강조
+    setTimeout(() => {
+        const checkbox = document.getElementById('auto-schedule-enabled');
+        checkbox.checked = true;
+        checkbox.dispatchEvent(new Event('change'));
+
+        // 깜빡임 효과
+        const settings = document.getElementById('schedule-settings');
+        settings.style.animation = 'highlight 1s ease';
+        setTimeout(() => {
+            settings.style.animation = '';
+        }, 1000);
+    }, 500);
+}
+
+// 스케줄 삭제
+async function deleteSchedule(workspaceName, displayName) {
+    if (!confirm(`"${displayName}" 워크스페이스의 자동 실행 스케줄을 삭제하시겠습니까?\n\n삭제 후 서버를 재시작해야 적용됩니다.`)) {
+        return;
+    }
+
+    try {
+        // 빈 스케줄로 저장 (enabled: false)
+        const response = await fetch('/api/schedule', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                workspace: workspaceName,
+                schedule: {
+                    enabled: false,
+                    create_thread_day: '',
+                    create_thread_time: '',
+                    create_thread_message: '',
+                    check_attendance_day: '',
+                    check_attendance_time: '',
+                    check_attendance_column: ''
+                },
+                notification_user_id: ''
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            alert('✓ 스케줄이 삭제되었습니다!\n\n서버를 재시작하면 적용됩니다.');
+            // 예약 현황 새로고침
+            loadAllSchedules();
+        } else {
+            alert('스케줄 삭제 실패: ' + data.error);
+        }
+    } catch (error) {
+        alert('스케줄 삭제 오류: ' + error.message);
+    }
 }
 
 // 유틸리티

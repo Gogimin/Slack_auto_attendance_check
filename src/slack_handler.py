@@ -160,13 +160,14 @@ class SlackHandler:
 
         return enriched_replies
 
-    def find_latest_attendance_thread(self, channel_id: str, keywords: List[str] = None) -> Optional[Dict]:
+    def find_latest_attendance_thread(self, channel_id: str, keywords: List[str] = None, include_bot: bool = True) -> Optional[Dict]:
         """
         채널에서 가장 최신 출석체크 스레드 찾기
 
         Args:
             channel_id (str): 채널 ID
             keywords (List[str]): 검색 키워드 리스트 (기본값: ["출석 스레드", "출석체크", "출석"])
+            include_bot (bool): 봇 메시지 포함 여부 (기본값: True)
 
         Returns:
             Optional[Dict]: 찾은 메시지 정보 (ts, text, user 등), 없으면 None
@@ -177,6 +178,7 @@ class SlackHandler:
         try:
             print(f"\n[Slack] 최신 출석체크 스레드 검색 중...")
             print(f"  - 검색 키워드: {', '.join(keywords)}")
+            print(f"  - 봇 메시지 포함: {include_bot}")
 
             # 최근 메시지 가져오기 (최대 100개)
             response = self.client.conversations_history(
@@ -193,8 +195,8 @@ class SlackHandler:
             for message in messages:
                 text = message.get('text', '').lower()
 
-                # Bot 메시지 제외
-                if message.get('bot_id'):
+                # Bot 메시지 제외 (옵션)
+                if not include_bot and message.get('bot_id'):
                     continue
 
                 # 키워드 검색
@@ -202,11 +204,13 @@ class SlackHandler:
                     if keyword.lower() in text:
                         print(f"✓ 출석체크 스레드 발견!")
                         print(f"  - 메시지: {message.get('text', '')[:100]}...")
+                        print(f"  - 작성자: {'봇' if message.get('bot_id') else '사용자'}")
 
                         return {
                             'ts': message.get('ts'),
                             'text': message.get('text'),
                             'user': message.get('user'),
+                            'bot_id': message.get('bot_id'),
                         }
 
             print("✗ 출석체크 스레드를 찾을 수 없습니다.")
@@ -216,18 +220,53 @@ class SlackHandler:
             print(f"✗ 메시지 검색 실패: {e.response['error']}")
             return None
 
-    def send_dm(self, user_id: str, message: str) -> bool:
+    def get_user_id_by_email(self, email: str) -> Optional[str]:
         """
-        특정 사용자에게 DM 전송
+        이메일 주소로 User ID 찾기
 
         Args:
-            user_id (str): Slack User ID
+            email (str): 슬랙 이메일 주소
+
+        Returns:
+            Optional[str]: User ID (U로 시작), 실패 시 None
+        """
+        try:
+            response = self.client.users_lookupByEmail(email=email)
+
+            if response['ok']:
+                user_id = response['user']['id']
+                print(f"✓ 이메일로 User ID 찾기 성공: {email} → {user_id}")
+                return user_id
+            else:
+                print(f"✗ 이메일로 User ID 찾기 실패: {email}")
+                return None
+
+        except SlackApiError as e:
+            print(f"✗ 이메일로 User ID 찾기 실패: {e.response['error']}")
+            return None
+
+    def send_dm(self, user_id_or_email: str, message: str) -> bool:
+        """
+        특정 사용자에게 DM 전송 (User ID 또는 이메일 주소 모두 지원)
+
+        Args:
+            user_id_or_email (str): Slack User ID (U로 시작) 또는 이메일 주소
             message (str): 메시지 내용
 
         Returns:
             bool: 전송 성공 여부
         """
         try:
+            user_id = user_id_or_email
+
+            # 이메일 형식이면 User ID로 변환
+            if '@' in user_id_or_email:
+                print(f"[DM] 이메일 주소 감지: {user_id_or_email}")
+                user_id = self.get_user_id_by_email(user_id_or_email)
+                if not user_id:
+                    print(f"✗ DM 전송 실패: 이메일로 사용자를 찾을 수 없습니다")
+                    return False
+
             # DM 채널 열기
             response = self.client.conversations_open(users=[user_id])
 
@@ -282,6 +321,38 @@ class SlackHandler:
         except SlackApiError as e:
             print(f"✗ 스레드 댓글 작성 실패: {e.response['error']}")
             return False
+
+    def post_message(self, channel_id: str, message: str) -> Optional[Dict]:
+        """
+        채널에 일반 메시지 전송 (출석 스레드 생성용)
+
+        Args:
+            channel_id (str): 채널 ID
+            message (str): 메시지 내용
+
+        Returns:
+            Optional[Dict]: 전송 성공 시 메시지 정보 (ts, text 등), 실패 시 None
+        """
+        try:
+            response = self.client.chat_postMessage(
+                channel=channel_id,
+                text=message
+            )
+
+            if response['ok']:
+                print(f"✓ 메시지 전송 성공")
+                return {
+                    'ts': response['ts'],
+                    'text': message,
+                    'channel': channel_id
+                }
+            else:
+                print(f"✗ 메시지 전송 실패")
+                return None
+
+        except SlackApiError as e:
+            print(f"✗ 메시지 전송 실패: {e.response['error']}")
+            return None
 
 
 # 테스트 코드

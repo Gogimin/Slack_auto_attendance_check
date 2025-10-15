@@ -91,6 +91,37 @@ class WorkspaceConfig:
     def credentials_path(self) -> str:
         return str(self.credentials_file)
 
+    @property
+    def notification_user_id(self) -> Optional[str]:
+        """알림 수신자 User ID (설정되지 않으면 None)"""
+        return self._config.get('notification_user_id')
+
+    @property
+    def auto_schedule(self) -> Optional[Dict]:
+        """자동 실행 스케줄 설정"""
+        return self._config.get('auto_schedule')
+
+    def save_schedule(self, schedule: Dict) -> bool:
+        """
+        스케줄 설정 저장
+
+        Args:
+            schedule: 스케줄 설정 딕셔너리
+
+        Returns:
+            bool: 저장 성공 여부
+        """
+        try:
+            self._config['auto_schedule'] = schedule
+
+            with open(self.config_file, 'w', encoding='utf-8') as f:
+                json.dump(self._config, f, ensure_ascii=False, indent=2)
+
+            return True
+        except Exception as e:
+            print(f"✗ 스케줄 저장 실패: {e}")
+            return False
+
 
 class WorkspaceManager:
     """워크스페이스 관리 클래스"""
