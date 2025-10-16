@@ -66,7 +66,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=None,  # 아이콘 파일이 있으면 여기에 경로 추가
+    icon='img/Auto.ico',  # 아이콘 파일
 )
 
 coll = COLLECT(
