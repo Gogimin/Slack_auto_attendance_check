@@ -24,14 +24,98 @@
             <!-- 워크스페이스 선택 -->
             <section class="card">
                 <h2>1️⃣ 워크스페이스 선택</h2>
-                <select id="workspace-select" class="form-control">
-                    <option value="">워크스페이스를 선택하세요...</option>
-                </select>
+                <div style="display: flex; gap: 10px; align-items: flex-start; margin-bottom: 15px;">
+                    <select id="workspace-select" class="form-control" style="flex: 1;">
+                        <option value="">워크스페이스를 선택하세요...</option>
+                    </select>
+                    <button id="add-workspace-btn" class="btn btn-primary">➕ 워크스페이스 추가</button>
+                </div>
                 <div id="workspace-info" class="info-box" style="display: none;">
                     <p><strong>채널 ID:</strong> <span id="channel-id"></span></p>
                     <p><strong>시트 이름:</strong> <span id="sheet-name"></span></p>
                 </div>
             </section>
+
+            <!-- 워크스페이스 추가 모달 -->
+            <div id="add-workspace-modal" class="modal" style="display: none;">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2>➕ 새 워크스페이스 추가</h2>
+                        <span class="modal-close">&times;</span>
+                    </div>
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label for="new-workspace-name">워크스페이스 폴더 이름 *</label>
+                            <input type="text" id="new-workspace-name" class="form-control" placeholder="예: 이기니, lgini, 테스트">
+                            <small>폴더 이름으로 사용됩니다. 한글, 영문, 숫자 사용 가능 (일부 특수문자 제외: < > : " / \ | ? *)</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="new-display-name">표시 이름 *</label>
+                            <input type="text" id="new-display-name" class="form-control" placeholder="예: 이기니 워크스페이스">
+                            <small>웹 UI에 표시될 이름</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="new-bot-token">Slack Bot Token *</label>
+                            <input type="text" id="new-bot-token" class="form-control" placeholder="xoxb-...">
+                            <small>Slack App의 Bot User OAuth Token</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="new-channel-id">Slack Channel ID *</label>
+                            <input type="text" id="new-channel-id" class="form-control" placeholder="C01234567">
+                            <small>출석체크를 진행할 채널의 ID</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="new-spreadsheet-id">Google Spreadsheet ID *</label>
+                            <input type="text" id="new-spreadsheet-id" class="form-control" placeholder="1A2B3C4D5E6F7G8H9I0J1K2L3M4N5O6P">
+                            <small>구글 시트 URL의 ID 부분</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="new-sheet-name">시트 이름</label>
+                            <input type="text" id="new-sheet-name" class="form-control" value="Sheet1">
+                            <small>출석 데이터가 있는 시트 탭 이름 (기본: Sheet1)</small>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="new-name-column">이름 열</label>
+                                <input type="text" id="new-name-column" class="form-control small" value="B" maxlength="2">
+                                <small>학생 이름이 있는 열 (예: B)</small>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="new-start-row">시작 행</label>
+                                <input type="number" id="new-start-row" class="form-control small" value="2" min="1">
+                                <small>데이터 시작 행 번호</small>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="new-credentials">Google Credentials JSON *</label>
+                            <textarea id="new-credentials" class="form-control" rows="8" placeholder='{"type": "service_account", "project_id": "...", ...}'></textarea>
+                            <small>구글 서비스 계정 JSON 키 전체 내용을 붙여넣으세요</small>
+                        </div>
+
+                        <div class="info-box" style="margin-top: 15px;">
+                            <p><strong>💡 도움말:</strong></p>
+                            <ul style="margin: 10px 0; padding-left: 20px;">
+                                <li><strong>Slack Bot Token:</strong> Slack App 설정 → OAuth & Permissions → Bot User OAuth Token</li>
+                                <li><strong>Channel ID:</strong> 슬랙 채널 우클릭 → 링크 복사 → 마지막 부분 (C로 시작)</li>
+                                <li><strong>Spreadsheet ID:</strong> 구글 시트 URL에서 /d/ 다음 부분</li>
+                                <li><strong>Credentials JSON:</strong> Google Cloud Console → 서비스 계정 → 키 생성 → JSON 다운로드</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button id="cancel-add-workspace-btn" class="btn btn-secondary">취소</button>
+                        <button id="submit-add-workspace-btn" class="btn btn-success">✓ 워크스페이스 추가</button>
+                    </div>
+                </div>
+            </div>
 
             <!-- 스레드 선택 -->
             <section class="card">
@@ -167,9 +251,44 @@
                             </div>
 
                             <div class="form-group">
-                                <label for="check-attendance-column">출석 열</label>
+                                <label for="check-attendance-column">시작 열 (현재 열)</label>
                                 <input type="text" id="check-attendance-column" class="form-control small"
                                        value="K" maxlength="2" placeholder="K">
+                            </div>
+                        </div>
+
+                        <div class="checkbox-group" style="margin-top: 15px;">
+                            <label>
+                                <input type="checkbox" id="auto-column-enabled">
+                                자동 열 증가 모드 활성화
+                            </label>
+                        </div>
+
+                        <div id="auto-column-settings" style="display: none; margin-top: 15px; padding: 15px; background: rgba(0, 122, 255, 0.05); border-radius: 10px; border: 1px solid rgba(0, 122, 255, 0.2);">
+                            <p style="margin-bottom: 12px; color: #007aff; font-weight: 500;">
+                                📅 매 실행마다 자동으로 열이 증가합니다
+                            </p>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="start-column">시작 열</label>
+                                    <input type="text" id="start-column" class="form-control small"
+                                           value="H" maxlength="2" placeholder="H">
+                                    <small>출석체크를 시작할 첫 번째 열</small>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="end-column">끝 열</label>
+                                    <input type="text" id="end-column" class="form-control small"
+                                           value="P" maxlength="2" placeholder="P">
+                                    <small>출석체크를 종료할 마지막 열</small>
+                                </div>
+                            </div>
+                            <div class="info-box" style="margin-top: 10px;">
+                                <p><strong>💡 작동 방식:</strong></p>
+                                <p style="margin: 5px 0;">• 1주차: H열 → 2주차: I열 → 3주차: J열 → ...</p>
+                                <p style="margin: 5px 0; color: #d9534f; font-weight: 500;">• <strong>끝 열에 도달하면 자동으로 스케줄이 비활성화됩니다</strong></p>
+                                <p style="margin: 5px 0;">• <strong>위 "시작 열"</strong>이 현재 출석체크할 열입니다</p>
+                                <p style="margin: 5px 0; color: #007aff;">• ✉️ 스케줄 완료 시 DM으로 알림을 받게 됩니다</p>
                             </div>
                         </div>
                     </div>

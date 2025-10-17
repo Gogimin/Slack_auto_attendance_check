@@ -192,6 +192,41 @@ def column_index_to_letter(index: int) -> Optional[str]:
     return chr(ord('A') + index)
 
 
+def get_next_column(current_column: str, start_column: str, end_column: str) -> str:
+    """
+    현재 열에서 다음 열을 계산 (순환)
+
+    Args:
+        current_column (str): 현재 열 (예: 'H')
+        start_column (str): 시작 열 (예: 'H')
+        end_column (str): 끝 열 (예: 'P')
+
+    Returns:
+        str: 다음 열. 끝에 도달하면 시작 열로 돌아감
+
+    Examples:
+        >>> get_next_column('H', 'H', 'P')
+        'I'
+        >>> get_next_column('P', 'H', 'P')
+        'H'  # 순환
+    """
+    current_idx = column_letter_to_index(current_column)
+    start_idx = column_letter_to_index(start_column)
+    end_idx = column_letter_to_index(end_column)
+
+    if current_idx is None or start_idx is None or end_idx is None:
+        return current_column  # 오류 시 현재 열 유지
+
+    # 다음 열 계산
+    next_idx = current_idx + 1
+
+    # 끝 열을 넘어가면 시작 열로 순환
+    if next_idx > end_idx:
+        next_idx = start_idx
+
+    return column_index_to_letter(next_idx)
+
+
 # 테스트 코드
 if __name__ == '__main__':
     print_header("유틸리티 함수 테스트")

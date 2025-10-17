@@ -19,7 +19,7 @@ from src.workspace_manager import WorkspaceManager
 from src.slack_handler import SlackHandler
 from src.sheets_handler import SheetsHandler, AttendanceStatus
 from src.parser import AttendanceParser
-from src.utils import parse_slack_thread_link, column_letter_to_index
+from src.utils import parse_slack_thread_link, column_letter_to_index, get_next_column, column_index_to_letter
 
 # Flask 앱 초기화
 app = Flask(__name__)
@@ -63,6 +63,112 @@ def get_workspaces():
         return jsonify({
             'success': False,
             'error': str(e)
+        }), 500
+
+
+@app.route('/api/workspaces/add', methods=['POST'])
+def add_workspace():
+    """새 워크스페이스 추가"""
+    import os
+    import json
+
+    try:
+        data = request.json
+
+        # 필수 필드 확인
+        required_fields = ['workspace_name', 'display_name', 'slack_bot_token',
+                          'slack_channel_id', 'spreadsheet_id', 'credentials_json']
+
+        for field in required_fields:
+            if not data.get(field):
+                return jsonify({
+                    'success': False,
+                    'error': f'{field} 필드가 필요합니다.'
+                }), 400
+
+        workspace_name = data['workspace_name'].strip()
+        display_name = data['display_name'].strip()
+        slack_bot_token = data['slack_bot_token'].strip()
+        slack_channel_id = data['slack_channel_id'].strip()
+        spreadsheet_id = data['spreadsheet_id'].strip()
+        sheet_name = data.get('sheet_name', 'Sheet1').strip()
+        name_column = data.get('name_column', 'B').strip()
+        start_row = int(data.get('start_row', 2))
+        credentials_json = data['credentials_json']
+
+        # 워크스페이스 폴더 경로
+        workspace_folder = Path(__file__).parent / 'workspaces' / workspace_name
+
+        # 폴더가 이미 존재하는지 확인
+        if workspace_folder.exists():
+            return jsonify({
+                'success': False,
+                'error': f'{workspace_name} 워크스페이스가 이미 존재합니다.'
+            }), 400
+
+        # 폴더 생성
+        workspace_folder.mkdir(parents=True, exist_ok=True)
+
+        # config.json 생성
+        config = {
+            "name": display_name,
+            "slack_bot_token": slack_bot_token,
+            "slack_channel_id": slack_channel_id,
+            "spreadsheet_id": spreadsheet_id,
+            "sheet_name": sheet_name,
+            "name_column": name_column if name_column.isalpha() else 1,
+            "start_row": start_row,
+            "notification_user_id": "",
+            "auto_schedule": {
+                "enabled": False,
+                "create_thread_day": "",
+                "create_thread_time": "",
+                "create_thread_message": "",
+                "check_attendance_day": "",
+                "check_attendance_time": "",
+                "check_attendance_column": "K",
+                "auto_column_enabled": False,
+                "start_column": "H",
+                "end_column": "O"
+            }
+        }
+
+        config_path = workspace_folder / 'config.json'
+        with open(config_path, 'w', encoding='utf-8') as f:
+            json.dump(config, f, ensure_ascii=False, indent=2)
+
+        # credentials.json 생성
+        credentials_path = workspace_folder / 'credentials.json'
+
+        # credentials_json이 문자열이면 JSON 파싱, 딕셔너리면 그대로 사용
+        if isinstance(credentials_json, str):
+            credentials_data = json.loads(credentials_json)
+        else:
+            credentials_data = credentials_json
+
+        with open(credentials_path, 'w', encoding='utf-8') as f:
+            json.dump(credentials_data, f, ensure_ascii=False, indent=2)
+
+        # 워크스페이스 매니저 리로드
+        workspace_manager.reload()
+
+        return jsonify({
+            'success': True,
+            'message': f'{display_name} 워크스페이스가 추가되었습니다.',
+            'workspace_name': workspace_name
+        })
+
+    except json.JSONDecodeError as e:
+        return jsonify({
+            'success': False,
+            'error': f'JSON 형식이 올바르지 않습니다: {str(e)}'
+        }), 400
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
         }), 500
 
 
@@ -495,8 +601,70 @@ def check_attendance_job(workspace):
             return
 
         # 7. 출석 매칭
-        column_input = schedule.get('check_attendance_column', 'K')
-        column_index = column_letter_to_index(column_input)
+        # 자동 열 증가 모드 확인
+        auto_column_enabled = schedule.get('auto_column_enabled', False)
+        start_column = schedule.get('start_column', 'H')
+        end_column = schedule.get('end_column', 'O')
+        current_column = schedule.get('check_attendance_column', 'K')
+
+        # 자동 열 증가가 활성화되어 있으면 다음 열로 이동
+        if auto_column_enabled and start_column and end_column:
+            # 현재 열 사용
+            column_input = current_column
+            column_index = column_letter_to_index(column_input)
+
+            print(f"📍 자동 열 증가 모드: {start_column} ~ {end_column}")
+            print(f"   현재 열: {current_column}")
+
+            # 끝 열에 도달했는지 확인
+            if current_column == end_column:
+                print(f"🎯 끝 열({end_column})에 도달했습니다. 스케줄을 비활성화합니다.")
+
+                # 스케줄 비활성화
+                schedule['enabled'] = False
+                workspace.save_schedule(schedule)
+
+                # 스케줄러에서 제거
+                try:
+                    scheduler.remove_job(f'create_thread_{workspace.name}')
+                    scheduler.remove_job(f'check_attendance_{workspace.name}')
+                    print(f"✓ 스케줄러에서 작업 제거 완료")
+                except Exception as e:
+                    print(f"⚠️ 스케줄러 작업 제거 중 오류 (무시 가능): {e}")
+
+                # 관리자에게 완료 알림 전송
+                notification_user = workspace.notification_user_id or thread_user
+                if notification_user:
+                    completion_message = f"""🎉 [출석체크 완료 알림]
+
+📊 **전체 출석체크가 완료되었습니다!**
+
+✅ 시작 열: {start_column}
+✅ 끝 열: {end_column}
+✅ 마지막 실행 열: {current_column}
+
+자동 스케줄이 비활성화되었습니다.
+다시 시작하려면 웹 UI에서 스케줄을 재설정해주세요.
+
+워크스페이스: {workspace.display_name}
+"""
+                    slack_handler.send_dm(notification_user, completion_message)
+                    print(f"✓ 완료 알림 DM 전송 완료")
+
+                column_index = column_letter_to_index(column_input)
+            else:
+                # 다음 실행을 위해 열 증가
+                next_column = get_next_column(current_column, start_column, end_column)
+                print(f"   다음 열: {next_column}")
+
+                # config 업데이트
+                schedule['check_attendance_column'] = next_column
+                workspace.save_schedule(schedule)
+                column_index = column_letter_to_index(column_input)
+        else:
+            # 수동 모드: 지정된 열 사용
+            column_input = current_column
+            column_index = column_letter_to_index(column_input)
 
         updates = []
         matched_names = []

@@ -935,3 +935,138 @@ a:hover::after {
 .pulse {
     animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
+
+/* 모달 스타일 */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    animation: fadeIn 0.2s ease-out;
+}
+
+.modal-content {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(30px) saturate(180%);
+    -webkit-backdrop-filter: blur(30px) saturate(180%);
+    margin: 5% auto;
+    padding: 0;
+    border-radius: 18px;
+    width: 90%;
+    max-width: 700px;
+    box-shadow:
+        0 10px 40px rgba(0, 0, 0, 0.2),
+        0 20px 60px rgba(0, 0, 0, 0.15);
+    animation: slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 24px 30px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.modal-header h2 {
+    margin: 0;
+    font-size: 1.6rem;
+    font-weight: 600;
+    color: #1d1d1f;
+}
+
+.modal-close {
+    font-size: 28px;
+    font-weight: 300;
+    color: #86868b;
+    cursor: pointer;
+    transition: all 0.2s;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+}
+
+.modal-close:hover {
+    background: rgba(0, 0, 0, 0.06);
+    color: #1d1d1f;
+}
+
+.modal-body {
+    padding: 24px 30px;
+    max-height: calc(100vh - 300px);
+    overflow-y: auto;
+}
+
+.modal-body::-webkit-scrollbar {
+    width: 10px;
+}
+
+.modal-body::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.04);
+    border-radius: 5px;
+}
+
+.modal-body::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 5px;
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    padding: 20px 30px;
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
+    background: rgba(0, 0, 0, 0.02);
+    border-bottom-left-radius: 18px;
+    border-bottom-right-radius: 18px;
+}
+
+.btn-secondary {
+    background: rgba(0, 0, 0, 0.06);
+    color: #1d1d1f;
+}
+
+.btn-secondary:hover {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+/* 반응형 모달 */
+@media (max-width: 768px) {
+    .modal-content {
+        width: 95%;
+        margin: 10% auto;
+    }
+
+    .modal-header,
+    .modal-body,
+    .modal-footer {
+        padding: 18px 20px;
+    }
+
+    .modal-header h2 {
+        font-size: 1.3rem;
+    }
+}

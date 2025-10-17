@@ -182,6 +182,12 @@ class WorkspaceManager:
         """모든 워크스페이스 이름 리스트"""
         return [ws.display_name for ws in self.get_all_workspaces()]
 
+    def reload(self):
+        """워크스페이스 목록 새로고침 (캐시가 있다면 초기화)"""
+        # 현재는 캐시를 사용하지 않으므로 별도 작업 불필요
+        # 추후 캐시 기능 추가 시 여기서 초기화
+        pass
+
 
 # 테스트 코드
 if __name__ == '__main__':

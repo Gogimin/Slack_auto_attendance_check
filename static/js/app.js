@@ -15,6 +15,24 @@ function setupEventListeners() {
     // 워크스페이스 선택
     document.getElementById('workspace-select').addEventListener('change', onWorkspaceChange);
 
+    // 워크스페이스 추가 버튼
+    document.getElementById('add-workspace-btn').addEventListener('click', openAddWorkspaceModal);
+
+    // 모달 닫기
+    document.querySelector('.modal-close').addEventListener('click', closeAddWorkspaceModal);
+    document.getElementById('cancel-add-workspace-btn').addEventListener('click', closeAddWorkspaceModal);
+
+    // 모달 외부 클릭 시 닫기
+    window.addEventListener('click', function(e) {
+        const modal = document.getElementById('add-workspace-modal');
+        if (e.target === modal) {
+            closeAddWorkspaceModal();
+        }
+    });
+
+    // 워크스페이스 추가 제출
+    document.getElementById('submit-add-workspace-btn').addEventListener('click', submitAddWorkspace);
+
     // 스레드 모드 전환
     document.querySelectorAll('input[name="thread-mode"]').forEach(radio => {
         radio.addEventListener('change', onThreadModeChange);
@@ -31,6 +49,9 @@ function setupEventListeners() {
 
     // 스케줄 활성화 토글
     document.getElementById('auto-schedule-enabled').addEventListener('change', toggleScheduleSettings);
+
+    // 자동 열 증가 토글
+    document.getElementById('auto-column-enabled').addEventListener('change', toggleAutoColumnSettings);
 
     // 스케줄 저장 버튼
     document.getElementById('save-schedule-btn').addEventListener('click', saveSchedule);
@@ -355,6 +376,12 @@ function resetScheduleForm() {
     document.getElementById('check-attendance-time').value = '';
     document.getElementById('check-attendance-column').value = 'K';
 
+    // 자동 열 증가 초기화
+    document.getElementById('auto-column-enabled').checked = false;
+    document.getElementById('auto-column-settings').style.display = 'none';
+    document.getElementById('start-column').value = 'H';
+    document.getElementById('end-column').value = 'O';
+
     // 알림 수신자 초기화
     document.getElementById('notification-user-id').value = '';
 }
@@ -362,6 +389,16 @@ function resetScheduleForm() {
 // 스케줄 활성화 토글
 function toggleScheduleSettings(e) {
     const settings = document.getElementById('schedule-settings');
+    if (e.target.checked) {
+        settings.style.display = 'block';
+    } else {
+        settings.style.display = 'none';
+    }
+}
+
+// 자동 열 증가 토글
+function toggleAutoColumnSettings(e) {
+    const settings = document.getElementById('auto-column-settings');
     if (e.target.checked) {
         settings.style.display = 'block';
     } else {
@@ -394,6 +431,13 @@ async function loadSchedule() {
             document.getElementById('check-attendance-time').value = schedule.check_attendance_time || '';
             document.getElementById('check-attendance-column').value = schedule.check_attendance_column || 'K';
 
+            // 자동 열 증가
+            const autoColumnEnabled = schedule.auto_column_enabled || false;
+            document.getElementById('auto-column-enabled').checked = autoColumnEnabled;
+            document.getElementById('auto-column-settings').style.display = autoColumnEnabled ? 'block' : 'none';
+            document.getElementById('start-column').value = schedule.start_column || 'H';
+            document.getElementById('end-column').value = schedule.end_column || 'O';
+
             // 알림 수신자
             document.getElementById('notification-user-id').value = data.notification_user_id || '';
         }
@@ -416,7 +460,10 @@ async function saveSchedule() {
         create_thread_message: document.getElementById('thread-message').value,
         check_attendance_day: document.getElementById('check-attendance-day').value,
         check_attendance_time: document.getElementById('check-attendance-time').value,
-        check_attendance_column: document.getElementById('check-attendance-column').value
+        check_attendance_column: document.getElementById('check-attendance-column').value,
+        auto_column_enabled: document.getElementById('auto-column-enabled').checked,
+        start_column: document.getElementById('start-column').value.trim().toUpperCase(),
+        end_column: document.getElementById('end-column').value.trim().toUpperCase()
     };
 
     const notificationUserId = document.getElementById('notification-user-id').value.trim();
@@ -613,4 +660,149 @@ async function deleteSchedule(workspaceName, displayName) {
 // 유틸리티
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// === 워크스페이스 추가 기능 ===
+
+// 모달 열기
+function openAddWorkspaceModal() {
+    const modal = document.getElementById('add-workspace-modal');
+    modal.style.display = 'block';
+    clearAddWorkspaceForm();
+}
+
+// 모달 닫기
+function closeAddWorkspaceModal() {
+    const modal = document.getElementById('add-workspace-modal');
+    modal.style.display = 'none';
+    clearAddWorkspaceForm();
+}
+
+// 폼 초기화
+function clearAddWorkspaceForm() {
+    document.getElementById('new-workspace-name').value = '';
+    document.getElementById('new-display-name').value = '';
+    document.getElementById('new-bot-token').value = '';
+    document.getElementById('new-channel-id').value = '';
+    document.getElementById('new-spreadsheet-id').value = '';
+    document.getElementById('new-sheet-name').value = 'Sheet1';
+    document.getElementById('new-name-column').value = 'B';
+    document.getElementById('new-start-row').value = '2';
+    document.getElementById('new-credentials').value = '';
+}
+
+// 워크스페이스 추가 제출
+async function submitAddWorkspace() {
+    // 입력값 수집
+    const workspaceName = document.getElementById('new-workspace-name').value.trim();
+    const displayName = document.getElementById('new-display-name').value.trim();
+    const botToken = document.getElementById('new-bot-token').value.trim();
+    const channelId = document.getElementById('new-channel-id').value.trim();
+    const spreadsheetId = document.getElementById('new-spreadsheet-id').value.trim();
+    const sheetName = document.getElementById('new-sheet-name').value.trim();
+    const nameColumn = document.getElementById('new-name-column').value.trim();
+    const startRow = parseInt(document.getElementById('new-start-row').value);
+    const credentialsText = document.getElementById('new-credentials').value.trim();
+
+    // 유효성 검사
+    if (!workspaceName) {
+        alert('워크스페이스 폴더 이름을 입력하세요.');
+        return;
+    }
+
+    // 폴더 이름 검증 (Windows 폴더명으로 사용할 수 없는 특수문자만 제외)
+    const invalidChars = /[<>:"/\\|?*]/;
+    if (invalidChars.test(workspaceName)) {
+        alert('워크스페이스 폴더 이름에 다음 문자는 사용할 수 없습니다:\n< > : " / \\ | ? *');
+        return;
+    }
+
+    if (workspaceName.trim().length === 0) {
+        alert('워크스페이스 폴더 이름을 입력하세요.');
+        return;
+    }
+
+    if (!displayName) {
+        alert('표시 이름을 입력하세요.');
+        return;
+    }
+
+    if (!botToken || !botToken.startsWith('xoxb-')) {
+        alert('올바른 Slack Bot Token을 입력하세요. (xoxb-로 시작해야 합니다)');
+        return;
+    }
+
+    if (!channelId || !channelId.startsWith('C')) {
+        alert('올바른 Channel ID를 입력하세요. (C로 시작해야 합니다)');
+        return;
+    }
+
+    if (!spreadsheetId) {
+        alert('Spreadsheet ID를 입력하세요.');
+        return;
+    }
+
+    if (!credentialsText) {
+        alert('Google Credentials JSON을 입력하세요.');
+        return;
+    }
+
+    // JSON 파싱 검증
+    let credentialsJson;
+    try {
+        credentialsJson = JSON.parse(credentialsText);
+    } catch (error) {
+        alert('Google Credentials JSON 형식이 올바르지 않습니다.\n\n' + error.message);
+        return;
+    }
+
+    // 버튼 비활성화
+    const submitBtn = document.getElementById('submit-add-workspace-btn');
+    const originalText = submitBtn.innerHTML;
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="loading"></span> 추가 중...';
+
+    try {
+        const response = await fetch('/api/workspaces/add', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                workspace_name: workspaceName,
+                display_name: displayName,
+                slack_bot_token: botToken,
+                slack_channel_id: channelId,
+                spreadsheet_id: spreadsheetId,
+                sheet_name: sheetName,
+                name_column: nameColumn,
+                start_row: startRow,
+                credentials_json: credentialsJson
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            alert('✅ 워크스페이스가 추가되었습니다!\n\n워크스페이스: ' + displayName);
+            closeAddWorkspaceModal();
+            // 워크스페이스 목록 새로고침
+            await loadWorkspaces();
+            // 새로 추가된 워크스페이스 자동 선택
+            document.getElementById('workspace-select').value = workspaceName;
+            currentWorkspace = workspaceName;
+            // 워크스페이스 정보 표시
+            const select = document.getElementById('workspace-select');
+            const selectedOption = select.options[select.selectedIndex];
+            const infoBox = document.getElementById('workspace-info');
+            document.getElementById('channel-id').textContent = selectedOption.dataset.channelId;
+            document.getElementById('sheet-name').textContent = selectedOption.dataset.sheetName;
+            infoBox.style.display = 'block';
+        } else {
+            alert('❌ 워크스페이스 추가 실패:\n\n' + data.error);
+        }
+    } catch (error) {
+        alert('❌ 워크스페이스 추가 오류:\n\n' + error.message);
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalText;
+    }
 }

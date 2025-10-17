@@ -37,6 +37,7 @@ config/*.json
 # Workspaces (보안상 중요)
 workspaces/*/config.json
 workspaces/*/credentials.json
+workspaces/*/workspace.json
 
 # Logs
 logs/*.log
