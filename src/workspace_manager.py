@@ -81,7 +81,17 @@ class WorkspaceConfig:
 
     @property
     def name_column(self) -> int:
-        return self._config['name_column']
+        """이름 열 인덱스 (0-based)"""
+        col = self._config['name_column']
+
+        # 문자열 (A, B 등)이면 숫자로 변환
+        if isinstance(col, str):
+            col = col.strip().upper()
+            if len(col) == 1 and 'A' <= col <= 'Z':
+                return ord(col) - ord('A')
+
+        # 이미 숫자면 그대로 반환
+        return int(col)
 
     @property
     def start_row(self) -> int:
