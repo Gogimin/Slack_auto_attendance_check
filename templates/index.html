@@ -28,7 +28,8 @@
                     <select id="workspace-select" class="form-control" style="flex: 1;">
                         <option value="">워크스페이스를 선택하세요...</option>
                     </select>
-                    <button id="add-workspace-btn" class="btn btn-primary">➕ 워크스페이스 추가</button>
+                    <button id="add-workspace-btn" class="btn btn-primary">➕ 추가</button>
+                    <button id="delete-workspace-btn" class="btn btn-danger" style="display: none;">🗑️ 삭제</button>
                 </div>
                 <div id="workspace-info" class="info-box" style="display: none;">
                     <p><strong>채널 ID:</strong> <span id="channel-id"></span></p>
@@ -58,8 +59,13 @@
 
                         <div class="form-group">
                             <label for="new-bot-token">Slack Bot Token *</label>
+                            <div style="display: flex; gap: 10px; margin-bottom: 8px;">
+                                <button type="button" id="load-token-btn" class="btn btn-secondary" style="flex: 0 0 auto;">📂 파일 불러오기</button>
+                                <input type="file" id="token-file-input" accept=".txt,.json" style="display: none;">
+                                <button type="button" id="clear-token-btn" class="btn btn-secondary" style="flex: 0 0 auto;">🗑️ 초기화</button>
+                            </div>
                             <input type="text" id="new-bot-token" class="form-control" placeholder="xoxb-...">
-                            <small>Slack App의 Bot User OAuth Token</small>
+                            <small>Slack App의 Bot User OAuth Token (직접 입력 또는 파일로 불러오기)</small>
                         </div>
 
                         <div class="form-group">
@@ -89,15 +95,20 @@
 
                             <div class="form-group">
                                 <label for="new-start-row">시작 행</label>
-                                <input type="number" id="new-start-row" class="form-control small" value="2" min="1">
-                                <small>데이터 시작 행 번호</small>
+                                <input type="number" id="new-start-row" class="form-control small" value="4" min="1">
+                                <small>데이터 시작 행 번호 (학생 이름이 시작되는 행)</small>
                             </div>
                         </div>
 
                         <div class="form-group">
                             <label for="new-credentials">Google Credentials JSON *</label>
+                            <div style="display: flex; gap: 10px; margin-bottom: 8px;">
+                                <button type="button" id="load-credentials-btn" class="btn btn-secondary" style="flex: 0 0 auto;">📂 파일 불러오기</button>
+                                <input type="file" id="credentials-file-input" accept=".json" style="display: none;">
+                                <button type="button" id="clear-credentials-btn" class="btn btn-secondary" style="flex: 0 0 auto;">🗑️ 초기화</button>
+                            </div>
                             <textarea id="new-credentials" class="form-control" rows="8" placeholder='{"type": "service_account", "project_id": "...", ...}'></textarea>
-                            <small>구글 서비스 계정 JSON 키 전체 내용을 붙여넣으세요</small>
+                            <small>구글 서비스 계정 JSON 키를 직접 붙여넣거나 파일로 불러올 수 있습니다</small>
                         </div>
 
                         <div class="info-box" style="margin-top: 15px;">
@@ -223,7 +234,8 @@
                         <div class="form-group">
                             <label for="thread-message">스레드 메시지</label>
                             <textarea id="thread-message" class="form-control" rows="3"
-                                      placeholder="📢 출석 스레드&#10;&#10;오늘 출석 체크합니다!&#10;이 메시지에 '이름/출석' 형식으로 댓글 달아주세요."></textarea>
+                                      placeholder="📢 출석 스레드입니다.&#10;&#10;&quot;이름/출석했습니다&quot; 형식으로 댓글 달아주세요!"></textarea>
+                            <small>출석 스레드 생성 시 보낼 메시지 (기본값: 📢 출석 스레드입니다.)</small>
                         </div>
                     </div>
 
@@ -255,6 +267,14 @@
                                 <input type="text" id="check-attendance-column" class="form-control small"
                                        value="K" maxlength="2" placeholder="K">
                             </div>
+                        </div>
+
+                        <div class="form-group" style="margin-top: 15px;">
+                            <label for="completion-message">출석 완료 댓글 메시지</label>
+                            <textarea id="completion-message" class="form-control" rows="2"
+                                      placeholder="[자동] 출석 체크를 완료했습니다.&#10;출석: {present}명 / 미출석: {absent}명"></textarea>
+                            <small>출석 집계 완료 시 스레드에 댓글로 보낼 메시지<br>
+                                사용 가능한 변수: <code>{present}</code> (출석자 수), <code>{absent}</code> (미출석자 수), <code>{total}</code> (총 인원)</small>
                         </div>
 
                         <div class="checkbox-group" style="margin-top: 15px;">

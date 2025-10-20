@@ -66,6 +66,51 @@ def get_workspaces():
         }), 500
 
 
+@app.route('/api/workspaces/delete', methods=['POST'])
+def delete_workspace():
+    """워크스페이스 삭제"""
+    import shutil
+
+    try:
+        data = request.json
+        workspace_name = data.get('workspace_name')
+
+        if not workspace_name:
+            return jsonify({
+                'success': False,
+                'error': 'workspace_name 필드가 필요합니다.'
+            }), 400
+
+        # 워크스페이스 폴더 경로
+        workspace_folder = Path(__file__).parent / 'workspaces' / workspace_name
+
+        # 폴더가 존재하는지 확인
+        if not workspace_folder.exists():
+            return jsonify({
+                'success': False,
+                'error': f'{workspace_name} 워크스페이스를 찾을 수 없습니다.'
+            }), 404
+
+        # 폴더 삭제
+        shutil.rmtree(workspace_folder)
+
+        # 워크스페이스 매니저 리로드
+        workspace_manager.reload()
+
+        return jsonify({
+            'success': True,
+            'message': f'{workspace_name} 워크스페이스가 삭제되었습니다.'
+        })
+
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }), 500
+
+
 @app.route('/api/workspaces/add', methods=['POST'])
 def add_workspace():
     """새 워크스페이스 추가"""
@@ -93,7 +138,7 @@ def add_workspace():
         spreadsheet_id = data['spreadsheet_id'].strip()
         sheet_name = data.get('sheet_name', 'Sheet1').strip()
         name_column = data.get('name_column', 'B').strip()
-        start_row = int(data.get('start_row', 2))
+        start_row = int(data.get('start_row', 4))
         credentials_json = data['credentials_json']
 
         # 워크스페이스 폴더 경로
@@ -123,10 +168,11 @@ def add_workspace():
                 "enabled": False,
                 "create_thread_day": "",
                 "create_thread_time": "",
-                "create_thread_message": "",
+                "create_thread_message": "📢 출석 스레드입니다.\n\n\"이름/출석했습니다\" 형식으로 댓글 달아주세요!",
                 "check_attendance_day": "",
                 "check_attendance_time": "",
                 "check_attendance_column": "K",
+                "check_completion_message": "[자동] 출석 체크를 완료했습니다.\n출석: {present}명 / 미출석: {absent}명",
                 "auto_column_enabled": False,
                 "start_column": "H",
                 "end_column": "O"
@@ -703,11 +749,18 @@ def check_attendance_job(workspace):
         # 10. 알림 전송
         notification_user = workspace.notification_user_id or thread_user
 
-        # 스레드 댓글
+        # 스레드 댓글 (사용자 정의 메시지 또는 기본 메시지)
+        completion_message_template = schedule.get('check_completion_message', '[자동] 출석 체크를 완료했습니다.\n출석: {present}명 / 미출석: {absent}명')
+        completion_message = completion_message_template.format(
+            present=len(matched_names),
+            absent=len(absent_names),
+            total=len(students)
+        )
+
         slack_handler.post_thread_reply(
             workspace.slack_channel_id,
             thread_ts,
-            f"[자동] 출석 체크를 완료했습니다.\n출석: {len(matched_names)}명 / 미출석: {len(absent_names)}명"
+            completion_message
         )
 
         # DM 전송

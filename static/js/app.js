@@ -18,20 +18,39 @@ function setupEventListeners() {
     // 워크스페이스 추가 버튼
     document.getElementById('add-workspace-btn').addEventListener('click', openAddWorkspaceModal);
 
+    // 워크스페이스 삭제 버튼
+    document.getElementById('delete-workspace-btn').addEventListener('click', deleteWorkspace);
+
     // 모달 닫기
     document.querySelector('.modal-close').addEventListener('click', closeAddWorkspaceModal);
     document.getElementById('cancel-add-workspace-btn').addEventListener('click', closeAddWorkspaceModal);
 
-    // 모달 외부 클릭 시 닫기
-    window.addEventListener('click', function(e) {
-        const modal = document.getElementById('add-workspace-modal');
-        if (e.target === modal) {
-            closeAddWorkspaceModal();
-        }
-    });
-
     // 워크스페이스 추가 제출
     document.getElementById('submit-add-workspace-btn').addEventListener('click', submitAddWorkspace);
+
+    // Bot Token 파일 불러오기
+    document.getElementById('load-token-btn').addEventListener('click', function() {
+        document.getElementById('token-file-input').click();
+    });
+
+    document.getElementById('token-file-input').addEventListener('change', loadTokenFile);
+
+    // Bot Token 초기화
+    document.getElementById('clear-token-btn').addEventListener('click', function() {
+        document.getElementById('new-bot-token').value = '';
+    });
+
+    // credentials 파일 불러오기
+    document.getElementById('load-credentials-btn').addEventListener('click', function() {
+        document.getElementById('credentials-file-input').click();
+    });
+
+    document.getElementById('credentials-file-input').addEventListener('change', loadCredentialsFile);
+
+    // credentials 초기화
+    document.getElementById('clear-credentials-btn').addEventListener('click', function() {
+        document.getElementById('new-credentials').value = '';
+    });
 
     // 스레드 모드 전환
     document.querySelectorAll('input[name="thread-mode"]').forEach(radio => {
@@ -104,6 +123,9 @@ function onWorkspaceChange(e) {
         document.getElementById('sheet-name').textContent = selectedOption.dataset.sheetName;
         infoBox.style.display = 'block';
 
+        // 삭제 버튼 표시
+        document.getElementById('delete-workspace-btn').style.display = 'inline-block';
+
         // 스레드 정보 초기화
         resetThreadInfo();
 
@@ -112,6 +134,7 @@ function onWorkspaceChange(e) {
     } else {
         currentWorkspace = null;
         document.getElementById('workspace-info').style.display = 'none';
+        document.getElementById('delete-workspace-btn').style.display = 'none';
     }
 }
 
@@ -375,6 +398,7 @@ function resetScheduleForm() {
     document.getElementById('check-attendance-day').value = '';
     document.getElementById('check-attendance-time').value = '';
     document.getElementById('check-attendance-column').value = 'K';
+    document.getElementById('completion-message').value = '[자동] 출석 체크를 완료했습니다.\n출석: {present}명 / 미출석: {absent}명';
 
     // 자동 열 증가 초기화
     document.getElementById('auto-column-enabled').checked = false;
@@ -430,6 +454,7 @@ async function loadSchedule() {
             document.getElementById('check-attendance-day').value = schedule.check_attendance_day || '';
             document.getElementById('check-attendance-time').value = schedule.check_attendance_time || '';
             document.getElementById('check-attendance-column').value = schedule.check_attendance_column || 'K';
+            document.getElementById('completion-message').value = schedule.check_completion_message || '[자동] 출석 체크를 완료했습니다.\n출석: {present}명 / 미출석: {absent}명';
 
             // 자동 열 증가
             const autoColumnEnabled = schedule.auto_column_enabled || false;
@@ -461,6 +486,7 @@ async function saveSchedule() {
         check_attendance_day: document.getElementById('check-attendance-day').value,
         check_attendance_time: document.getElementById('check-attendance-time').value,
         check_attendance_column: document.getElementById('check-attendance-column').value,
+        check_completion_message: document.getElementById('completion-message').value,
         auto_column_enabled: document.getElementById('auto-column-enabled').checked,
         start_column: document.getElementById('start-column').value.trim().toUpperCase(),
         end_column: document.getElementById('end-column').value.trim().toUpperCase()
@@ -662,7 +688,156 @@ function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// === 워크스페이스 추가 기능 ===
+// === 워크스페이스 관리 기능 ===
+
+// Bot Token 파일 불러오기
+function loadTokenFile(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+
+    reader.onload = function(e) {
+        try {
+            let content = e.target.result.trim();
+
+            // JSON 파일인 경우 bot_token 키 찾기
+            if (file.name.endsWith('.json')) {
+                try {
+                    const json = JSON.parse(content);
+                    // bot_token 또는 slack_bot_token 키 찾기
+                    content = json.bot_token || json.slack_bot_token || json.token || content;
+                } catch (jsonError) {
+                    // JSON 파싱 실패 시 그대로 사용
+                }
+            }
+
+            // xoxb- 토큰 형식 확인
+            if (!content.startsWith('xoxb-')) {
+                if (!confirm('⚠️ 올바른 Slack Bot Token 형식이 아닐 수 있습니다.\n(xoxb-로 시작해야 함)\n\n그래도 사용하시겠습니까?')) {
+                    event.target.value = '';
+                    return;
+                }
+            }
+
+            // 입력 필드에 삽입
+            document.getElementById('new-bot-token').value = content;
+            alert('✅ Bot Token을 성공적으로 불러왔습니다!');
+        } catch (error) {
+            alert('❌ 파일을 읽는 중 오류가 발생했습니다.\n\n' + error.message);
+        }
+        // 파일 입력 초기화
+        event.target.value = '';
+    };
+
+    reader.onerror = function() {
+        alert('❌ 파일을 읽는 중 오류가 발생했습니다.');
+        event.target.value = '';
+    };
+
+    reader.readAsText(file);
+}
+
+// 워크스페이스 삭제
+async function deleteWorkspace() {
+    if (!currentWorkspace) {
+        showError('삭제할 워크스페이스를 선택하세요.');
+        return;
+    }
+
+    const select = document.getElementById('workspace-select');
+    const selectedOption = select.options[select.selectedIndex];
+    const displayName = selectedOption.textContent;
+
+    // 확인 메시지
+    if (!confirm(`정말로 "${displayName}" 워크스페이스를 삭제하시겠습니까?\n\n⚠️ 경고: 이 작업은 되돌릴 수 없습니다!\n- config.json\n- credentials.json\n모든 설정 파일이 영구적으로 삭제됩니다.`)) {
+        return;
+    }
+
+    // 한 번 더 확인
+    if (!confirm(`⚠️ 최종 확인\n\n"${displayName}" 워크스페이스의 모든 데이터를 삭제합니다.\n계속하시겠습니까?`)) {
+        return;
+    }
+
+    const btn = document.getElementById('delete-workspace-btn');
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="loading"></span> 삭제 중...';
+
+    try {
+        const response = await fetch('/api/workspaces/delete', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                workspace_name: currentWorkspace
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            alert('✅ 워크스페이스가 삭제되었습니다.\n\n삭제된 워크스페이스: ' + displayName);
+
+            // 현재 선택 초기화
+            currentWorkspace = null;
+
+            // 워크스페이스 목록 새로고침
+            await loadWorkspaces();
+
+            // UI 초기화
+            document.getElementById('workspace-info').style.display = 'none';
+            document.getElementById('delete-workspace-btn').style.display = 'none';
+            resetThreadInfo();
+            resetScheduleForm();
+            hideError();
+            hideResult();
+        } else {
+            alert('❌ 워크스페이스 삭제 실패:\n\n' + data.error);
+        }
+    } catch (error) {
+        alert('❌ 워크스페이스 삭제 오류:\n\n' + error.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    }
+}
+
+// credentials 파일 불러오기
+function loadCredentialsFile(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // 파일 확장자 검증
+    if (!file.name.endsWith('.json')) {
+        alert('JSON 파일만 업로드할 수 있습니다.');
+        event.target.value = '';
+        return;
+    }
+
+    const reader = new FileReader();
+
+    reader.onload = function(e) {
+        try {
+            const content = e.target.result;
+            // JSON 유효성 검사
+            JSON.parse(content);
+            // 유효하면 textarea에 삽입
+            document.getElementById('new-credentials').value = content;
+            alert('✅ 파일을 성공적으로 불러왔습니다!');
+        } catch (error) {
+            alert('❌ JSON 파일 형식이 올바르지 않습니다.\n\n' + error.message);
+        }
+        // 파일 입력 초기화 (같은 파일 재선택 가능하도록)
+        event.target.value = '';
+    };
+
+    reader.onerror = function() {
+        alert('❌ 파일을 읽는 중 오류가 발생했습니다.');
+        event.target.value = '';
+    };
+
+    reader.readAsText(file);
+}
 
 // 모달 열기
 function openAddWorkspaceModal() {
@@ -687,7 +862,7 @@ function clearAddWorkspaceForm() {
     document.getElementById('new-spreadsheet-id').value = '';
     document.getElementById('new-sheet-name').value = 'Sheet1';
     document.getElementById('new-name-column').value = 'B';
-    document.getElementById('new-start-row').value = '2';
+    document.getElementById('new-start-row').value = '4';
     document.getElementById('new-credentials').value = '';
 }
 
