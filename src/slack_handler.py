@@ -6,6 +6,7 @@ from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 from typing import List, Dict, Optional
 import time
+import re
 
 
 class SlackHandler:
@@ -20,6 +21,28 @@ class SlackHandler:
         """
         self.client = WebClient(token=token)
         self.user_cache = {}  # 사용자 정보 캐시
+
+    @staticmethod
+    def convert_mentions(message: str) -> str:
+        """
+        사용자가 입력한 @channel, @here 등을 슬랙 형식으로 변환
+
+        Args:
+            message (str): 원본 메시지
+
+        Returns:
+            str: 변환된 메시지
+        """
+        # @channel -> <!channel>
+        message = re.sub(r'@channel\b', '<!channel>', message, flags=re.IGNORECASE)
+
+        # @here -> <!here>
+        message = re.sub(r'@here\b', '<!here>', message, flags=re.IGNORECASE)
+
+        # @everyone -> <!everyone>
+        message = re.sub(r'@everyone\b', '<!everyone>', message, flags=re.IGNORECASE)
+
+        return message
 
     def test_connection(self) -> bool:
         """
@@ -305,10 +328,13 @@ class SlackHandler:
             bool: 전송 성공 여부
         """
         try:
+            # @channel, @here 등을 슬랙 형식으로 변환
+            converted_message = self.convert_mentions(message)
+
             response = self.client.chat_postMessage(
                 channel=channel_id,
                 thread_ts=thread_ts,
-                text=message
+                text=converted_message
             )
 
             if response['ok']:
@@ -334,9 +360,12 @@ class SlackHandler:
             Optional[Dict]: 전송 성공 시 메시지 정보 (ts, text 등), 실패 시 None
         """
         try:
+            # @channel, @here 등을 슬랙 형식으로 변환
+            converted_message = self.convert_mentions(message)
+
             response = self.client.chat_postMessage(
                 channel=channel_id,
-                text=message
+                text=converted_message
             )
 
             if response['ok']:
